@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="3">
+    <name>virtual_can</name>
+    <version>1.0.0</version>
+    <description>This is a ROS 2 node used to simulate an ADS-DV by passing simulator data via CAN</description>
+    <author email="j-michalski@outlook.com">Jakub Michalski</author>
+    <maintainer email="j-michalski@outlook.com">Jakub Michalski</maintainer>
+
+    <license>MIT</license>
+
+    <buildtool_depend>ament_cmake</buildtool_depend>
+
+    <depend>rclcpp</depend>
+    <depend>sensor_msgs</depend>
+    <depend>imperial_driverless_interfaces</depend>
+
+    <export>
+        <build_type>ament_cmake</build_type>
+    </export>
+
+</package>
