@@ -52,14 +52,14 @@ public:
         }
 
         // declare subscriptions (simulator info)
-        imu_sub_ = this->create_subscription<sensor_msgs::msg::Imu>("/imu/data", 1, std::bind(&SimulateCAN::imu_callback, this, _1));
-        vcu_drive_feedback_sub_ = this->create_subscription<imperial_driverless_interfaces::msg::VCUDriveFeedback>("/vcu_drive_feedback", 1, std::bind(&SimulateCAN::vcu_drive_feedback_callback, this, _1));
+        imu_sub = this->create_subscription<sensor_msgs::msg::Imu>("/imu/data", 1, std::bind(&SimulateCAN::imu_callback, this, _1));
+        vcu_drive_feedback_sub = this->create_subscription<imperial_driverless_interfaces::msg::VCUDriveFeedback>("/vcu_drive_feedback", 1, std::bind(&SimulateCAN::vcu_drive_feedback_callback, this, _1));
 
         // declare services
 
 
         // setup interface
-        fs_ai_api_init(const_cast<char *>(can_interface.c_str()), can_debug, can_simuilate);
+        fs_ai_api_init(const_cast<char *>(can_interface.c_str()), can_debug, can_simulate);
     }
 
 private:
@@ -135,7 +135,15 @@ private:
     int can_simulate = 0;
     std::string can_interface = "can0";
     // subscriptions
-    rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
-    rclcpp::Subscription<imperial_driverless_interfaces::msg::VCUDriveFeedback>::SharedPtr vcu_drive_feedback_sub_;
+    rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub;
+    rclcpp::Subscription<imperial_driverless_interfaces::msg::VCUDriveFeedback>::SharedPtr vcu_drive_feedback_sub;
     // declare services
 };
+
+int main(int argc, char **argv)
+{
+  rclcpp::init(argc, argv);
+  rclcpp::spin(std::make_shared<SimulateCAN>());
+  rclcpp::shutdown();
+  return 0;
+}
