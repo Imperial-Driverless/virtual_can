@@ -7,6 +7,7 @@
 #include "../FS-AI_API/FS-AI_API/fs-ai_api.h"
 
 using std::placeholders::_1;
+using std::placeholders::_2;
 
 typedef union can_data_t {
 	volatile uint8_t ubytes[8];
@@ -35,13 +36,30 @@ public:
     SimulateCAN() : Node("virtual_can")
     {
         handshake = fs_ai_api_handshake_send_bit_e::HANDSHAKE_SEND_BIT_OFF;
+        
         // declare parameters
+        can_debug = declare_parameter<int>("can_debug", can_debug);
+        can_simulate = declare_parameter<int>("can_simulate", can_simulate);
+        can_interface = declare_parameter<std::string>("can_interface", can_interface);
+        if (declare_parameter<bool>("debug_logging", false))
+        {
+            get_logger().set_level(rclcpp::Logger::Level::Debug);
+        }
+
+        if (can_debug) 
+        {
+            RCLCPP_INFO(get_logger(), "Starting FS-AI API in debug mode");
+        }
 
         // declare subscriptions (simulator info)
         imu_sub_ = this->create_subscription<sensor_msgs::msg::Imu>("/imu/data", 1, std::bind(&SimulateCAN::imu_callback, this, _1));
         vcu_drive_feedback_sub_ = this->create_subscription<imperial_driverless_interfaces::msg::VCUDriveFeedback>("/vcu_drive_feedback", 1, std::bind(&SimulateCAN::vcu_drive_feedback_callback, this, _1));
 
         // declare services
+
+
+        // setup interface
+        fs_ai_api_init(const_cast<char *>(can_interface.c_str()), can_debug, can_simuilate);
     }
 
 private:
@@ -112,6 +130,10 @@ private:
     }
     
     fs_ai_api_handshake_send_bit_e handshake;
+    // parameters
+    int can_debug = 0;
+    int can_simulate = 0;
+    std::string can_interface = "can0";
     // subscriptions
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
     rclcpp::Subscription<imperial_driverless_interfaces::msg::VCUDriveFeedback>::SharedPtr vcu_drive_feedback_sub_;

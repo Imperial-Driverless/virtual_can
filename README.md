@@ -31,6 +31,15 @@ IMU data from the simulator                                                     
 imperial_driverless_interfaces/msg/VCUDriveFeedback |
 Processed wheel speeds using one of the VCU feedback processors
 
+### Parameters
+
+| Topic                       | Type   | Default | Purpose                                                                                    |
+| --------------------------- | ------ | ------- | ------------------------------------------------------------------------------------------ |
+| `can_interface`             | string | can0    | Sets the CAN interface in FS-AI library.                                                   |
+| `can_debug`                 | int    | 0       | Starts the FS-AI library in debug mode. Set to something other than 0 to enable            |
+| `can_simulate`              | int    | 0       | Starts the FS-AI library with simulated CAN data. Set to something other than 0 to enable  |
+| `debug_logging`             | bool   | false   | Enable debug logging.                                                                      |
+
 # Launch files
 
 | Filename                 | Purpose                                                                             |
