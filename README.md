@@ -1,2 +1,43 @@
 # virtual_can
 Package emulating a CAN device using data from simulations to test VCU-Car connection
+
+If it's the first time you're cloning this, run `git submodule update --init --recursive` to clone the `FS-AI-API` submodule.
+
+### Dependencies
+
+- All ROS dependencies found in the package manifest as usual.
+- `imperial_driverless_interfaces` installed
+- Ability to communicate through CAN
+
+# Nodes
+
+## virtual_can
+
+This node emulates a CAN device from the ADS-DV. It transmits topics from the simulator over CAN for `ros_can` to publish them as ROS topics. It uses the `FS-AI_API` submodule.
+
+### Subscribers
+
+| Topic                      |
+Type                                                |
+Purpose                                                                                      |
+
+|-------------------------------------------------- |
+--------------------------------- |
+-------------------------------------------------------------------------------------------- |
+| `/imu/data`                |
+sensor_msgs/msg/Imu                                 |
+IMU data from the simulator                                                                                   |
+| `/vcu_drive_feedback`      |
+imperial_driverless_interfaces/msg/VCUDriveFeedback |
+Processed wheel speeds using one of the VCU feedback processors
+
+# Launch files
+
+| Filename                 | Purpose                                                                             |
+| ------------------- | ----------------------------------------------------------------------------------- |
+| `virtual_can.launch.py` | Starts the `virtual_can` node in normal working operation configured for the ADS-DV car                 |
+
+### TODO
+- Implement state machine of the vehicle + services to modify it
+- Test on lightweight_lidar_only_simulator
+- Implement EBS service
