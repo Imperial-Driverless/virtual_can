@@ -9,9 +9,10 @@ def generate_launch_description():
         name="virtual_can",
         parameters=[
             # {"use_sim_time": True},
-            # {"can_debug": 0},
-            # {"simulate_can": 1},
-            # {"can_interface": "vcan0"},
+            {"can_debug": 1},
+            {"can_simulate": 0},
+            {"can_interface": "vcan0"},
+            {"debug_logging": True},
             # {"loop_rate": 100},
             # {"rpm_limit": 100},
             # {"max_acc": 5.0},

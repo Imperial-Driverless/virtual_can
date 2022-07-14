@@ -19,15 +19,18 @@ typedef union can_data_t {
 	volatile float floats[2];
 } can_data_t;
 
+#define VCU2AI_STEER_ID			            0x523
 #define VCU2AI_WHEEL_SPEEDS_ID	            0x525
 #define PCAN_GPS_BMC_ACCELERATION_ID		0X600
 #define PCAN_GPS_L3GD20_ROTATION_A_ID		0X610
 #define PCAN_GPS_L3GD20_ROTATION_B_ID		0X611
 
+
 static struct can_frame VCU2AI_Wheel_speeds = {VCU2AI_WHEEL_SPEEDS_ID, 8};
 static struct can_frame PCAN_GPS_BMC_Acceleration = {PCAN_GPS_BMC_ACCELERATION_ID, 8};
 static struct can_frame PCAN_GPS_L3GD20_Rotation_A = {PCAN_GPS_L3GD20_ROTATION_A_ID, 8};
 static struct can_frame PCAN_GPS_L3GD20_Rotation_B = {PCAN_GPS_L3GD20_ROTATION_B_ID, 8};
+static struct can_frame VCU2AI_Steer = {VCU2AI_STEER_ID, 4};
 
 
 class SimulateCAN : public rclcpp::Node
@@ -92,8 +95,7 @@ private:
 
     void vcu_drive_feedback_callback(const imperial_driverless_interfaces::msg::VCUDriveFeedback::SharedPtr msg)
     {
-        // prepare can frame
-
+        // prepare can frames
         VCU2AI_Wheel_speeds.data[0] = (uint8_t)((int)(msg->fl_wheel_speed_rpm) & 0x00FF);
         VCU2AI_Wheel_speeds.data[1] = (uint8_t)(((int)(msg->fl_wheel_speed_rpm) & 0xFF00) >> 8);
 
@@ -106,7 +108,16 @@ private:
         VCU2AI_Wheel_speeds.data[6] = (uint8_t)((int)(msg->rr_wheel_speed_rpm) & 0x00FF);
         VCU2AI_Wheel_speeds.data[7] = (uint8_t)(((int)(msg->rr_wheel_speed_rpm) & 0xFF00) >> 8);
 
+        int steering_angle_deg = ((-msg->steering_angle_rad) * 180.0f * 10.0f) / M_PI;
+        VCU2AI_Steer.data[0] = (uint8_t)((int)(steering_angle_deg) & 0x00FF);
+        VCU2AI_Steer.data[1] = (uint8_t)(((int)(steering_angle_deg) & 0xFF00) >> 8);
+
+        // TODO: add steer angle max to can frame
+        VCU2AI_Steer.data[2] = 0;
+        VCU2AI_Steer.data[3] = 0;
+
         can_send(&VCU2AI_Wheel_speeds);
+        can_send(&VCU2AI_Steer);
     }
 
     fs_ai_api_handshake_send_bit_e get_handshake()
