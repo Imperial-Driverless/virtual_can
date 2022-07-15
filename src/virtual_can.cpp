@@ -19,17 +19,17 @@ typedef union can_data_t {
 	volatile float floats[2];
 } can_data_t;
 
-#define VCU2AI_STEER_ID			            0x523
-#define VCU2AI_WHEEL_SPEEDS_ID	            0x525
-#define PCAN_GPS_BMC_ACCELERATION_ID		0X600
-#define PCAN_GPS_L3GD20_ROTATION_A_ID		0X610
-#define PCAN_GPS_L3GD20_ROTATION_B_ID		0X611
+#define VCU2AI_STEER_ID			        0x523
+#define VCU2AI_WHEEL_SPEEDS_ID	        0x525
+#define PCAN_GPS_BMC_ACCELERATION_ID	0X600
+#define PCAN_GPS_L3GD20_ROTATION_A_ID	0X610
+#define PCAN_GPS_L3GD20_ROTATION_B_ID	0X611
 
 
 static struct can_frame VCU2AI_Wheel_speeds = {VCU2AI_WHEEL_SPEEDS_ID, 8};
 static struct can_frame PCAN_GPS_BMC_Acceleration = {PCAN_GPS_BMC_ACCELERATION_ID, 8};
 static struct can_frame PCAN_GPS_L3GD20_Rotation_A = {PCAN_GPS_L3GD20_ROTATION_A_ID, 8};
-static struct can_frame PCAN_GPS_L3GD20_Rotation_B = {PCAN_GPS_L3GD20_ROTATION_B_ID, 8};
+static struct can_frame PCAN_GPS_L3GD20_Rotation_B = {PCAN_GPS_L3GD20_ROTATION_B_ID, 4};
 static struct can_frame VCU2AI_Steer = {VCU2AI_STEER_ID, 4};
 
 
@@ -76,14 +76,15 @@ private:
         temp = (can_data_t*)&PCAN_GPS_BMC_Acceleration.data[0];
         
         // acceleration data is in mG
-        temp->swords[0] = (int16_t) (msg->linear_acceleration.x * 1000.0f / 9.81f);
-        temp->swords[1] = (int16_t) (msg->linear_acceleration.y * 1000.0f / 9.81f);
-        temp->swords[2] = (int16_t) (msg->linear_acceleration.z * 1000.0f / 9.81f);
+        // Actual acceleremoter requires multiplication by 3.91 so we emulate that here
+        temp->swords[0] = (int16_t) (msg->linear_acceleration.x * 1000.0f / (9.8f * 3.91f));
+        temp->swords[1] = (int16_t) (msg->linear_acceleration.y * 1000.0f / (9.8f * 3.91f));
+        temp->swords[2] = (int16_t) (msg->linear_acceleration.z * 1000.0f / (9.8f * 3.91f));
         
         // ros_can expects degrees
         temp = (can_data_t*)&PCAN_GPS_L3GD20_Rotation_A.data[0];
         temp->floats[0] = (msg->angular_velocity.x / M_PI) * 180.0;
-        temp->floats[0] = (msg->angular_velocity.y / M_PI) * 180.0;
+        temp->floats[1] = (msg->angular_velocity.y / M_PI) * 180.0;
 
         temp = (can_data_t*)&PCAN_GPS_L3GD20_Rotation_B.data[0];
         temp->floats[0] = (msg->angular_velocity.z / M_PI) * 180.0;
@@ -112,7 +113,7 @@ private:
         VCU2AI_Steer.data[0] = (uint8_t)((int)(steering_angle_deg) & 0x00FF);
         VCU2AI_Steer.data[1] = (uint8_t)(((int)(steering_angle_deg) & 0xFF00) >> 8);
 
-        // TODO: add steer angle max to can frame
+        // TODO: add steer angle max to CAN frame
         VCU2AI_Steer.data[2] = 0;
         VCU2AI_Steer.data[3] = 0;
 
@@ -141,7 +142,7 @@ private:
     }
     
     fs_ai_api_handshake_send_bit_e handshake;
-    // parameters
+    // parameters and their defaults
     int can_debug = 0;
     int can_simulate = 0;
     std::string can_interface = "can0";
