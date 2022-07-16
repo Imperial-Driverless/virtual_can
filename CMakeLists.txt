@@ -11,9 +11,8 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 
-find_package(rclcpp REQUIRED)
-find_package(sensor_msgs REQUIRED)
-find_package(imperial_driverless_interfaces REQUIRED)
+find_package(ament_cmake_auto REQUIRED)
+ament_auto_find_build_dependencies()
 
 # Make FS-AI_API
 add_custom_target(fs-ai_api ALL
@@ -26,7 +25,7 @@ add_executable(virtual_can_node src/virtual_can.cpp)
 add_dependencies(virtual_can_node fs-ai_api)
 target_link_libraries(virtual_can_node ${PROJECT_SOURCE_DIR}/FS-AI_API/FS-AI_API/fs-ai_api.a)
 
-ament_target_dependencies(virtual_can_node rclcpp sensor_msgs imperial_driverless_interfaces)
+ament_target_dependencies(virtual_can_node rclcpp sensor_msgs id_msgs)
 
 # Install executable
 install(TARGETS virtual_can_node

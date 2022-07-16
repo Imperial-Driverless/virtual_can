@@ -6,8 +6,9 @@ If it's the first time you're cloning this, run `git submodule update --init --r
 ### Dependencies
 
 - All ROS dependencies found in the package manifest as usual.
-- `imperial_driverless_interfaces` installed
+- `id_msgs` installed
 - Ability to communicate through CAN
+- If you want to emulate a vehicle, you will need to run the `vcan.sh` (once every reboot) to enable the vcan0 interface
 
 # Nodes
 
@@ -28,7 +29,7 @@ Purpose                                                                         
 sensor_msgs/msg/Imu                                 |
 IMU data from the simulator                                                                                   |
 | `/vcu_drive_feedback`      |
-imperial_driverless_interfaces/msg/VCUDriveFeedback |
+id_msgs/msg/VCUDriveFeedback |
 Processed wheel speeds using one of the VCU feedback processors
 
 ### Parameters

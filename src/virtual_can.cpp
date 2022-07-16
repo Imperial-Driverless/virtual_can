@@ -1,7 +1,7 @@
 #include <string>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/imu.hpp>
-#include <imperial_driverless_interfaces/msg/vcu_drive_feedback.hpp>
+#include <id_msgs/msg/vcu_drive_feedback.hpp>
 
 #include "../FS-AI_API/FS-AI_API/can.h"
 #include "../FS-AI_API/FS-AI_API/fs-ai_api.h"
@@ -56,7 +56,7 @@ public:
 
         // declare subscriptions (simulator info)
         imu_sub = this->create_subscription<sensor_msgs::msg::Imu>("/imu/data", 1, std::bind(&SimulateCAN::imu_callback, this, _1));
-        vcu_drive_feedback_sub = this->create_subscription<imperial_driverless_interfaces::msg::VCUDriveFeedback>("/vcu_drive_feedback", 1, std::bind(&SimulateCAN::vcu_drive_feedback_callback, this, _1));
+        vcu_drive_feedback_sub = this->create_subscription<id_msgs::msg::VCUDriveFeedback>("/vcu_drive_feedback", 1, std::bind(&SimulateCAN::vcu_drive_feedback_callback, this, _1));
 
         // declare services
 
@@ -94,7 +94,7 @@ private:
         can_send(&PCAN_GPS_L3GD20_Rotation_B);
     }
 
-    void vcu_drive_feedback_callback(const imperial_driverless_interfaces::msg::VCUDriveFeedback::SharedPtr msg)
+    void vcu_drive_feedback_callback(const id_msgs::msg::VCUDriveFeedback::SharedPtr msg)
     {
         // prepare can frames
         VCU2AI_Wheel_speeds.data[0] = (uint8_t)((int)(msg->fl_wheel_speed_rpm) & 0x00FF);
@@ -148,7 +148,7 @@ private:
     std::string can_interface = "can0";
     // subscriptions
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub;
-    rclcpp::Subscription<imperial_driverless_interfaces::msg::VCUDriveFeedback>::SharedPtr vcu_drive_feedback_sub;
+    rclcpp::Subscription<id_msgs::msg::VCUDriveFeedback>::SharedPtr vcu_drive_feedback_sub;
     // declare services
 };
 
