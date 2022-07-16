@@ -62,7 +62,7 @@ public:
 
 
         // setup interface
-        fs_ai_api_init(const_cast<char *>(can_interface.c_str()), can_debug, can_simulate);
+        fs_ai_api_init_reverse(const_cast<char *>(can_interface.c_str()), can_debug, can_simulate);
     }
 
 private:
