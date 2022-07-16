@@ -3,6 +3,7 @@ Package emulating a CAN device using data from simulations to test VCU-Car conne
 
 If it's the first time you're cloning this, run `git submodule update --init --recursive` to clone the `FS-AI-API` submodule.
 
+Currently working: transmiting VCU feedback and IMU data from simulation to `ros_can`
 ### Dependencies
 
 - All ROS dependencies found in the package manifest as usual.
@@ -18,20 +19,10 @@ This node emulates a CAN device from the ADS-DV. It transmits topics from the si
 
 ### Subscribers
 
-| Topic                      |
-Type                                                |
-Purpose                                                                                      |
-
-|-------------------------------------------------- |
---------------------------------- |
--------------------------------------------------------------------------------------------- |
-| `/imu/data`                |
-sensor_msgs/msg/Imu                                 |
-IMU data from the simulator                                                                                   |
-| `/vcu_drive_feedback`      |
-id_msgs/msg/VCUDriveFeedback |
-Processed wheel speeds using one of the VCU feedback processors
-
+| Topic                   | Type                         | Purpose                                                                              |
+| ----------------------- | ---------------------------- | ---------------------------------------------------------------------- |
+| `/imu/data`             | sensor_msgs/msg/Imu          | IMU data from the simulator                                                          |
+| `/vcu_drive_feedback`   | id_msgs/msg/VCUDriveFeedback | Processed wheel speeds using one of the VCU feedback processors                      |
 ### Parameters
 
 | Topic                       | Type   | Default | Purpose                                                                                    |
