@@ -13,7 +13,7 @@ def generate_launch_description():
             {"can_simulate": 0},
             {"can_interface": "vcan0"},
             {"debug_logging": True},
-            # {"loop_rate": 100},
+            {"loop_rate": 100},
             # {"rpm_limit": 100},
             # {"max_acc": 5.0},
             # {"max_braking": 5.0},

@@ -1,6 +1,7 @@
 #include <string>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/imu.hpp>
+#include <id_msgs/msg/vcu_drive_command.hpp>
 #include <id_msgs/msg/vcu_drive_feedback.hpp>
 
 #include "../FS-AI_API/FS-AI_API/can.h"
@@ -19,19 +20,6 @@ typedef union can_data_t {
 	volatile float floats[2];
 } can_data_t;
 
-#define VCU2AI_STEER_ID			        0x523
-#define VCU2AI_WHEEL_SPEEDS_ID	        0x525
-#define PCAN_GPS_BMC_ACCELERATION_ID	0X600
-#define PCAN_GPS_L3GD20_ROTATION_A_ID	0X610
-#define PCAN_GPS_L3GD20_ROTATION_B_ID	0X611
-
-
-static struct can_frame VCU2AI_Wheel_speeds = {VCU2AI_WHEEL_SPEEDS_ID, 8};
-static struct can_frame PCAN_GPS_BMC_Acceleration = {PCAN_GPS_BMC_ACCELERATION_ID, 8};
-static struct can_frame PCAN_GPS_L3GD20_Rotation_A = {PCAN_GPS_L3GD20_ROTATION_A_ID, 8};
-static struct can_frame PCAN_GPS_L3GD20_Rotation_B = {PCAN_GPS_L3GD20_ROTATION_B_ID, 4};
-static struct can_frame VCU2AI_Steer = {VCU2AI_STEER_ID, 4};
-
 
 class SimulateCAN : public rclcpp::Node
 {
@@ -44,6 +32,7 @@ public:
         can_debug = declare_parameter<int>("can_debug", can_debug);
         can_simulate = declare_parameter<int>("can_simulate", can_simulate);
         can_interface = declare_parameter<std::string>("can_interface", can_interface);
+        loop_rate = declare_parameter<int>("loop_rate", loop_rate);
         if (declare_parameter<bool>("debug_logging", false))
         {
             get_logger().set_level(rclcpp::Logger::Level::Debug);
@@ -58,67 +47,98 @@ public:
         imu_sub = this->create_subscription<sensor_msgs::msg::Imu>("/imu/data", 1, std::bind(&SimulateCAN::imu_callback, this, _1));
         vcu_drive_feedback_sub = this->create_subscription<id_msgs::msg::VCUDriveFeedback>("/vcu_drive_feedback", 1, std::bind(&SimulateCAN::vcu_drive_feedback_callback, this, _1));
 
+        // declare publishers (simulator commands)
+        cmd_pub = this->create_publisher<id_msgs::msg::VCUDriveCommand>("/vcu_drive_command", 1);
+
         // declare services
 
 
         // setup interface
         fs_ai_api_init_reverse(const_cast<char *>(can_interface.c_str()), can_debug, can_simulate);
+
+        // setup ROS times
+        std::chrono::duration<float> rate(1 / static_cast<double>(loop_rate));
+        timer = this->create_wall_timer(rate, std::bind(&SimulateCAN::loop, this));
+    }
+
+    void loop()
+    {
+        // get fresh data from AI
+
+
+        // assign data to be sent
+        // VCU2AI
+
+        if (vcu2ai_data_ready)
+        {
+            vcu2ai_data_ready = false;
+            vcu2ai_data.VCU2AI_HANDSHAKE_RECEIVE_BIT = VCU2AI_HANDSHAKE_RECEIVE_BIT;
+            vcu2ai_data.VCU2AI_RES_GO_SIGNAL = VCU2AI_RES_GO_SIGNAL;
+            vcu2ai_data.VCU2AI_AS_STATE = VCU2AI_AS_STATE;
+            vcu2ai_data.VCU2AI_AMI_STATE = VCU2AI_AMI_STATE;
+            vcu2ai_data.VCU2AI_STEER_ANGLE_deg = steering_angle_deg;
+            vcu2ai_data.VCU2AI_BRAKE_PRESS_F_pct = brake_pressure_f_pct;
+            vcu2ai_data.VCU2AI_BRAKE_PRESS_R_pct = brake_pressure_r_pct;
+            vcu2ai_data.VCU2AI_FL_WHEEL_SPEED_rpm = fl_wheel_speed_rpm;
+            vcu2ai_data.VCU2AI_FR_WHEEL_SPEED_rpm = fr_wheel_speed_rpm;
+            vcu2ai_data.VCU2AI_RL_WHEEL_SPEED_rpm = rl_wheel_speed_rpm;
+            vcu2ai_data.VCU2AI_RR_WHEEL_SPEED_rpm = rr_wheel_speed_rpm;
+            vcu2ai_data.VCU2AI_FL_PULSE_COUNT = fl_pulse_count;
+            vcu2ai_data.VCU2AI_FR_PULSE_COUNT = fr_pulse_count;
+            vcu2ai_data.VCU2AI_RL_PULSE_COUNT = rl_pulse_count;
+            vcu2ai_data.VCU2AI_RR_PULSE_COUNT = rr_pulse_count;
+            fs_ai_api_vcu2ai_set_data(&vcu2ai_data);
+        }
+
+        // IMU
+        if (imu_data_ready)
+        {
+            imu_data_ready = false;
+            imu_data.IMU_Acceleration_X_mG = x_linear_acceleration;
+            imu_data.IMU_Acceleration_Y_mG = y_linear_acceleration;
+            imu_data.IMU_Acceleration_Z_mG = z_linear_acceleration;
+            imu_data.IMU_Temperature_degC = temperature_degC;
+            imu_data.IMU_VerticalAxis = vertical_axis;
+            imu_data.IMU_Orientation = orientation;
+            imu_data.IMU_MagneticField_X_uT = magnetic_field_x_uT;
+            imu_data.IMU_MagneticField_Y_uT = magnetic_field_y_uT;
+            imu_data.IMU_MagneticField_Z_uT = magnetic_field_z_uT;
+            imu_data.IMU_Rotation_X_degps = x_angular_velocity;
+            imu_data.IMU_Rotation_Y_degps = y_angular_velocity;
+            imu_data.IMU_Rotation_Z_degps = z_angular_velocity;
+            fs_ai_api_imu_set_data(&imu_data);
+        }        
     }
 
 private:
 
     void imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg)
-    {
-        // IMU data is transmitted over 3 GPS frames
-        // PCAN_GPS_BMC_Acceleration, PCAN_GPS_L3GD20_Rotation_A and PCAN_GPS_L3GD20_Rotation_B
-        can_data_t* temp;
+    {   
+        imu_data_ready = true;
 
-        temp = (can_data_t*)&PCAN_GPS_BMC_Acceleration.data[0];
-        
         // acceleration data is in mG
         // Actual acceleremoter requires multiplication by 3.91 so we emulate that here
-        temp->swords[0] = (int16_t) (msg->linear_acceleration.x * 1000.0f / (9.8f * 3.91f));
-        temp->swords[1] = (int16_t) (msg->linear_acceleration.y * 1000.0f / (9.8f * 3.91f));
-        temp->swords[2] = (int16_t) (msg->linear_acceleration.z * 1000.0f / (9.8f * 3.91f));
+        x_linear_acceleration = (int16_t) (msg->linear_acceleration.x * 1000.0f / 9.8f);
+        y_linear_acceleration = (int16_t) (msg->linear_acceleration.y * 1000.0f / 9.8f);
+        z_linear_acceleration = (int16_t) (msg->linear_acceleration.z * 1000.0f / 9.8f);
         
         // ros_can expects degrees
-        temp = (can_data_t*)&PCAN_GPS_L3GD20_Rotation_A.data[0];
-        temp->floats[0] = (msg->angular_velocity.x / M_PI) * 180.0;
-        temp->floats[1] = (msg->angular_velocity.y / M_PI) * 180.0;
-
-        temp = (can_data_t*)&PCAN_GPS_L3GD20_Rotation_B.data[0];
-        temp->floats[0] = (msg->angular_velocity.z / M_PI) * 180.0;
-
-        can_send(&PCAN_GPS_BMC_Acceleration);
-        can_send(&PCAN_GPS_L3GD20_Rotation_A);
-        can_send(&PCAN_GPS_L3GD20_Rotation_B);
+        x_angular_velocity = (msg->angular_velocity.x / M_PI) * 180.0;
+        y_angular_velocity = (msg->angular_velocity.y / M_PI) * 180.0;
+        z_angular_velocity = (msg->angular_velocity.z / M_PI) * 180.0;
     }
 
     void vcu_drive_feedback_callback(const id_msgs::msg::VCUDriveFeedback::SharedPtr msg)
     {
-        // prepare can frames
-        VCU2AI_Wheel_speeds.data[0] = (uint8_t)((int)(msg->fl_wheel_speed_rpm) & 0x00FF);
-        VCU2AI_Wheel_speeds.data[1] = (uint8_t)(((int)(msg->fl_wheel_speed_rpm) & 0xFF00) >> 8);
+        vcu2ai_data_ready = true;
+        
+        // prepare message
+        fl_wheel_speed_rpm = msg->fl_wheel_speed_rpm;
+        fr_wheel_speed_rpm = msg->fr_wheel_speed_rpm;
+        rl_wheel_speed_rpm = msg->rl_wheel_speed_rpm;
+        rr_wheel_speed_rpm = msg->rr_wheel_speed_rpm;
 
-        VCU2AI_Wheel_speeds.data[2] = (uint8_t)((int)(msg->fr_wheel_speed_rpm) & 0x00FF);
-        VCU2AI_Wheel_speeds.data[3] = (uint8_t)(((int)(msg->fr_wheel_speed_rpm) & 0xFF00) >> 8);
-
-        VCU2AI_Wheel_speeds.data[4] = (uint8_t)((int)(msg->rl_wheel_speed_rpm) & 0x00FF);
-        VCU2AI_Wheel_speeds.data[5] = (uint8_t)(((int)(msg->rl_wheel_speed_rpm) & 0xFF00) >> 8);
-
-        VCU2AI_Wheel_speeds.data[6] = (uint8_t)((int)(msg->rr_wheel_speed_rpm) & 0x00FF);
-        VCU2AI_Wheel_speeds.data[7] = (uint8_t)(((int)(msg->rr_wheel_speed_rpm) & 0xFF00) >> 8);
-
-        int steering_angle_deg = ((-msg->steering_angle_rad) * 180.0f * 10.0f) / M_PI;
-        VCU2AI_Steer.data[0] = (uint8_t)((int)(steering_angle_deg) & 0x00FF);
-        VCU2AI_Steer.data[1] = (uint8_t)(((int)(steering_angle_deg) & 0xFF00) >> 8);
-
-        // TODO: add steer angle max to CAN frame
-        VCU2AI_Steer.data[2] = 0;
-        VCU2AI_Steer.data[3] = 0;
-
-        can_send(&VCU2AI_Wheel_speeds);
-        can_send(&VCU2AI_Steer);
+        steering_angle_deg = ((-msg->steering_angle_rad) * 180.0f) / M_PI;
     }
 
     fs_ai_api_handshake_send_bit_e get_handshake()
@@ -146,10 +166,61 @@ private:
     int can_debug = 0;
     int can_simulate = 0;
     std::string can_interface = "can0";
+    int loop_rate = 100;
+    
     // subscriptions
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub;
     rclcpp::Subscription<id_msgs::msg::VCUDriveFeedback>::SharedPtr vcu_drive_feedback_sub;
+    
+    // publishers
+    rclcpp::Publisher<id_msgs::msg::VCUDriveCommand>::SharedPtr cmd_pub;
+    
     // declare services
+
+    // ROS timer
+    rclcpp::TimerBase::SharedPtr timer;
+
+    // FS-AI API structs to store data
+    struct fs_ai_api_vcu2ai_struct vcu2ai_data; // wheel speed data to send to ros_can
+    struct fs_ai_api_imu_struct imu_data; // IMU data to send to ros_can
+
+    // Flags determining if data is ready to send
+    bool vcu2ai_data_ready = false;
+    bool imu_data_ready = false;
+
+    // Variables 
+    double fl_wheel_speed_rpm = 0.0;
+    double fr_wheel_speed_rpm = 0.0;
+    double rl_wheel_speed_rpm = 0.0;
+    double rr_wheel_speed_rpm = 0.0;
+    double steering_angle_deg = 0.0;
+
+    int16_t x_linear_acceleration = 0;
+    int16_t y_linear_acceleration = 0;
+    int16_t z_linear_acceleration = 0;
+
+    double x_angular_velocity = 0.0;
+    double y_angular_velocity = 0.0;
+    double z_angular_velocity = 0.0;
+
+    fs_ai_api_handshake_receive_bit_e   VCU2AI_HANDSHAKE_RECEIVE_BIT = HANDSHAKE_RECEIVE_BIT_OFF;
+    fs_ai_api_res_go_signal_bit_e		VCU2AI_RES_GO_SIGNAL = RES_GO_SIGNAL_NO_GO;
+    fs_ai_api_as_state_e				VCU2AI_AS_STATE = AS_OFF;
+    fs_ai_api_ami_state_e				VCU2AI_AMI_STATE = AMI_NOT_SELECTED;
+
+    // variables not implemented in simulator
+    float brake_pressure_f_pct = 0.0f;
+    float brake_pressure_r_pct = 0.0f;
+    float fl_pulse_count = 0.0f;
+    float fr_pulse_count = 0.0f;
+    float rl_pulse_count = 0.0f;
+    float rr_pulse_count = 0.0f;
+    float temperature_degC = 0.0f;
+    uint8_t vertical_axis = 0;
+    uint8_t orientation = 0;
+    int16_t magnetic_field_x_uT = 0;
+    int16_t magnetic_field_y_uT = 0;
+    int16_t magnetic_field_z_uT = 0;
 };
 
 int main(int argc, char **argv)
