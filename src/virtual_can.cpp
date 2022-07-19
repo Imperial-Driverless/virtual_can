@@ -48,7 +48,7 @@ public:
         vcu_drive_feedback_sub = this->create_subscription<id_msgs::msg::VCUDriveFeedback>("/vcu_drive_feedback", 1, std::bind(&SimulateCAN::vcu_drive_feedback_callback, this, _1));
 
         // declare publishers (simulator commands)
-        cmd_pub = this->create_publisher<id_msgs::msg::VCUDriveCommand>("/vcu_drive_command", 1);
+        cmd_pub = this->create_publisher<id_msgs::msg::VCUDriveCommand>("/vcu_drive_cmd", 1);
 
         // declare services
 
@@ -64,11 +64,27 @@ public:
     void loop()
     {
         // get fresh data from AI
+        fs_ai_api_ai2vcu_get_data(&ai2vcu_data);
 
+        // Log new data (in one string so log messages don't get separated)
+        std::string msg_recv =
+            "--- Read CAN data ---\n"
+            "MISSION:     " + std::to_string(ai2vcu_data.AI2VCU_MISSION_STATUS) + "\n" +
+            "DIRECTION:   " + std::to_string(ai2vcu_data.AI2VCU_DIRECTION_REQUEST) + "\n" +
+            "ESTOP:       " + std::to_string(ai2vcu_data.AI2VCU_ESTOP_REQUEST) + "\n" +
+            "HANDSHAKE:   " + std::to_string(ai2vcu_data.AI2VCU_HANDSHAKE_SEND_BIT) + "\n" +
+            "STEER:       " + std::to_string(ai2vcu_data.AI2VCU_STEER_ANGLE_REQUEST_deg) + "\n" +
+            "AXLE SPEED:  " + std::to_string(ai2vcu_data.AI2VCU_AXLE_SPEED_REQUEST_rpm) + "\n" +
+            "AXLE TORQUE: " + std::to_string(ai2vcu_data.AI2VCU_AXLE_TORQUE_REQUEST_Nm) + "\n" +
+            "BRAKE REQ:   " + std::to_string(ai2vcu_data.AI2VCU_BRAKE_PRESS_REQUEST_pct) + "\n";
+        RCLCPP_DEBUG(get_logger(), "%s", msg_recv.c_str());
 
-        // assign data to be sent
+        // publish all received data
+        id_msgs::msg::VCUDriveCommand cmd_msg = makeCommandMessage(ai2vcu_data);
+        cmd_pub->publish(cmd_msg);
+
+        // assign data to be sent only when it's ready not to overcrowd CAN bus
         // VCU2AI
-
         if (vcu2ai_data_ready)
         {
             vcu2ai_data_ready = false;
@@ -107,10 +123,33 @@ public:
             imu_data.IMU_Rotation_Y_degps = y_angular_velocity;
             imu_data.IMU_Rotation_Z_degps = z_angular_velocity;
             fs_ai_api_imu_set_data(&imu_data);
-        }        
+        }
+
+        // Log sent data (in one string so log messages don't get separated)
+        std::string msg_send =
+            "--- Send CAN data ---\n"
+            "AS STATE:    " + std::to_string(vcu2ai_data.VCU2AI_AS_STATE) + "\n" +
+            "AMI STATE:   " + std::to_string(vcu2ai_data.VCU2AI_AMI_STATE) + "\n" +
+            "FL RPM:      " + std::to_string(vcu2ai_data.VCU2AI_FL_WHEEL_SPEED_rpm) + "\n" +
+            "FR RPM:      " + std::to_string(vcu2ai_data.VCU2AI_FR_WHEEL_SPEED_rpm) + "\n" +
+            "RL RPM:      " + std::to_string(vcu2ai_data.VCU2AI_RL_WHEEL_SPEED_rpm) + "\n" +
+            "RR RPM:      " + std::to_string(vcu2ai_data.VCU2AI_RR_WHEEL_SPEED_rpm) + "\n" +
+            "STEER ANGLE: " + std::to_string(vcu2ai_data.VCU2AI_STEER_ANGLE_deg) + "\n";
+        RCLCPP_DEBUG(get_logger(), "%s", msg_send.c_str());
     }
 
 private:
+    id_msgs::msg::VCUDriveCommand makeCommandMessage(const fs_ai_api_ai2vcu_struct &data)
+    {
+        id_msgs::msg::VCUDriveCommand cmd_msg;
+
+        cmd_msg.motor_torque_nm = data.AI2VCU_AXLE_TORQUE_REQUEST_Nm;
+        cmd_msg.steering_angle_rad = data.AI2VCU_STEER_ANGLE_REQUEST_deg * M_PI / 180.0f;
+        cmd_msg.brake_pct = data.AI2VCU_BRAKE_PRESS_REQUEST_pct / 100.0f;
+        cmd_msg.rpm_limit = data.AI2VCU_AXLE_SPEED_REQUEST_rpm;
+
+        return cmd_msg;
+    }
 
     void imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg)
     {   
@@ -183,6 +222,7 @@ private:
     // FS-AI API structs to store data
     struct fs_ai_api_vcu2ai_struct vcu2ai_data; // wheel speed data to send to ros_can
     struct fs_ai_api_imu_struct imu_data; // IMU data to send to ros_can
+    struct fs_ai_api_ai2vcu_struct ai2vcu_data; // AI data sent to car
 
     // Flags determining if data is ready to send
     bool vcu2ai_data_ready = false;
