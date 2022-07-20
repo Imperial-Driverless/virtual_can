@@ -26,13 +26,14 @@ class SimulateCAN : public rclcpp::Node
 public:
     SimulateCAN() : Node("virtual_can")
     {
-        handshake = fs_ai_api_handshake_send_bit_e::HANDSHAKE_SEND_BIT_OFF;
         
         // declare parameters
         can_debug = declare_parameter<int>("can_debug", can_debug);
         can_simulate = declare_parameter<int>("can_simulate", can_simulate);
         can_interface = declare_parameter<std::string>("can_interface", can_interface);
         loop_rate = declare_parameter<int>("loop_rate", loop_rate);
+        declare_parameter<int>("mission", VCU2AI_AMI_STATE);
+
         if (declare_parameter<bool>("debug_logging", false))
         {
             get_logger().set_level(rclcpp::Logger::Level::Debug);
@@ -63,6 +64,18 @@ public:
 
     void loop()
     {
+        // update mission if possible
+        if (VCU2AI_AS_STATE == AS_OFF)
+        {
+            int mission;
+            this->get_parameter("mission", mission);
+
+            if (mission >= AMI_NOT_SELECTED && mission <= AMI_AUTONOMOUS_DEMO)
+            {
+                VCU2AI_AMI_STATE = (fs_ai_api_ami_state_e) mission;
+            }
+        }
+
         // get fresh data from AI
         fs_ai_api_ai2vcu_get_data(&ai2vcu_data);
 
@@ -77,7 +90,7 @@ public:
             "AXLE SPEED:  " + std::to_string(ai2vcu_data.AI2VCU_AXLE_SPEED_REQUEST_rpm) + "\n" +
             "AXLE TORQUE: " + std::to_string(ai2vcu_data.AI2VCU_AXLE_TORQUE_REQUEST_Nm) + "\n" +
             "BRAKE REQ:   " + std::to_string(ai2vcu_data.AI2VCU_BRAKE_PRESS_REQUEST_pct) + "\n";
-        RCLCPP_DEBUG(get_logger(), "%s", msg_recv.c_str());
+        RCLCPP_DEBUG(get_logger(), "Mission: %d\n", VCU2AI_AMI_STATE);
 
         // publish all received data
         id_msgs::msg::VCUDriveCommand cmd_msg = makeCommandMessage(ai2vcu_data);
@@ -135,7 +148,8 @@ public:
             "RL RPM:      " + std::to_string(vcu2ai_data.VCU2AI_RL_WHEEL_SPEED_rpm) + "\n" +
             "RR RPM:      " + std::to_string(vcu2ai_data.VCU2AI_RR_WHEEL_SPEED_rpm) + "\n" +
             "STEER ANGLE: " + std::to_string(vcu2ai_data.VCU2AI_STEER_ANGLE_deg) + "\n";
-        RCLCPP_DEBUG(get_logger(), "%s", msg_send.c_str());
+        // RCLCPP_DEBUG(get_logger(), "%s", msg_send.c_str());
+        RCLCPP_DEBUG(get_logger(), "Loop rate: %d\n", loop_rate);
     }
 
 private:
@@ -183,24 +197,23 @@ private:
     fs_ai_api_handshake_send_bit_e get_handshake()
     {
         // switch handshake bit and return it
-        if (handshake == fs_ai_api_handshake_send_bit_e::HANDSHAKE_SEND_BIT_OFF)
+        if (HANDSHAKE == fs_ai_api_handshake_send_bit_e::HANDSHAKE_SEND_BIT_OFF)
         {
-            handshake = fs_ai_api_handshake_send_bit_e::HANDSHAKE_SEND_BIT_ON;
+            HANDSHAKE = fs_ai_api_handshake_send_bit_e::HANDSHAKE_SEND_BIT_ON;
             return fs_ai_api_handshake_send_bit_e::HANDSHAKE_SEND_BIT_ON;
         }
         else
         {
-            handshake = fs_ai_api_handshake_send_bit_e::HANDSHAKE_SEND_BIT_OFF;
+            HANDSHAKE = fs_ai_api_handshake_send_bit_e::HANDSHAKE_SEND_BIT_OFF;
             return fs_ai_api_handshake_send_bit_e::HANDSHAKE_SEND_BIT_OFF;
         }
     }
 
     bool check_hanshake(fs_ai_api_handshake_send_bit_e other)
     {
-        return handshake == other;
+        return HANDSHAKE == other;
     }
-    
-    fs_ai_api_handshake_send_bit_e handshake;
+
     // parameters and their defaults
     int can_debug = 0;
     int can_simulate = 0;
@@ -228,7 +241,14 @@ private:
     bool vcu2ai_data_ready = false;
     bool imu_data_ready = false;
 
-    // Variables 
+    // car state variables
+    fs_ai_api_handshake_receive_bit_e   VCU2AI_HANDSHAKE_RECEIVE_BIT = HANDSHAKE_RECEIVE_BIT_OFF;
+    fs_ai_api_res_go_signal_bit_e		VCU2AI_RES_GO_SIGNAL = RES_GO_SIGNAL_NO_GO;
+    fs_ai_api_as_state_e				VCU2AI_AS_STATE = AS_OFF;
+    fs_ai_api_ami_state_e				VCU2AI_AMI_STATE = AMI_NOT_SELECTED;
+    fs_ai_api_handshake_send_bit_e      HANDSHAKE = fs_ai_api_handshake_send_bit_e::HANDSHAKE_SEND_BIT_OFF;
+
+    // Variables for CAN frames
     double fl_wheel_speed_rpm = 0.0;
     double fr_wheel_speed_rpm = 0.0;
     double rl_wheel_speed_rpm = 0.0;
@@ -243,12 +263,7 @@ private:
     double y_angular_velocity = 0.0;
     double z_angular_velocity = 0.0;
 
-    fs_ai_api_handshake_receive_bit_e   VCU2AI_HANDSHAKE_RECEIVE_BIT = HANDSHAKE_RECEIVE_BIT_OFF;
-    fs_ai_api_res_go_signal_bit_e		VCU2AI_RES_GO_SIGNAL = RES_GO_SIGNAL_NO_GO;
-    fs_ai_api_as_state_e				VCU2AI_AS_STATE = AS_OFF;
-    fs_ai_api_ami_state_e				VCU2AI_AMI_STATE = AMI_NOT_SELECTED;
-
-    // variables not implemented in simulator
+    // CAN variables not implemented in simulator
     float brake_pressure_f_pct = 0.0f;
     float brake_pressure_r_pct = 0.0f;
     float fl_pulse_count = 0.0f;
